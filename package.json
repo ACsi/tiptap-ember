@@ -77,6 +77,7 @@
     "@embroider/macros": "^1.20.1",
     "@embroider/vite": "^1.1.5",
     "@eslint/js": "^9.17.0",
+    "@floating-ui/dom": "^1.7.6",
     "@glimmer/component": "^2.0.0",
     "@glint/ember-tsc": "^1.11.6",
     "@glint/template": "^1.9.0",
@@ -114,6 +115,7 @@
     "vite": "^7.1.9"
   },
   "peerDependencies": {
+    "@floating-ui/dom": "^1.0.0",
     "@glint/template": "^1.0.0",
     "@tiptap/core": "^3.31.4",
     "@tiptap/extension-bubble-menu": "^3.31.4",
@@ -122,12 +124,6 @@
   },
   "peerDependenciesMeta": {
     "@glint/template": {
-      "optional": true
-    },
-    "@tiptap/extension-bubble-menu": {
-      "optional": true
-    },
-    "@tiptap/extension-floating-menu": {
       "optional": true
     }
   },

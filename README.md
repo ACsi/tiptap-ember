@@ -22,12 +22,6 @@ Ember components for [tiptap](https://tiptap.dev). Render node views, mark views
 pnpm add @acsi/tiptap-ember @tiptap/core @tiptap/pm @tiptap/starter-kit
 ```
 
-The menus need their extensions:
-
-```sh
-pnpm add @tiptap/extension-bubble-menu @tiptap/extension-floating-menu
-```
-
 ## Usage
 
 ### The editor
@@ -601,7 +595,7 @@ Example: [Popups](#popups).
 
 ### `<BubbleMenu>` and `<FloatingMenu>`
 
-Menus that show next to the selection and on empty lines. They need `@tiptap/extension-bubble-menu` and `@tiptap/extension-floating-menu`. Attributes go on the menu element.
+Menus that show next to the selection and on empty lines. Attributes go on the menu element.
 
 ```gts
 import { BubbleMenu, FloatingMenu } from '@acsi/tiptap-ember/menus';
