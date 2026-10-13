@@ -1,0 +1,144 @@
+{
+  "name": "@acsi/tiptap-ember",
+  "version": "0.0.0",
+  "description": "Ember components for tiptap",
+  "keywords": [
+    "ember-addon",
+    "tiptap",
+    "tiptap ember components"
+  ],
+  "homepage": "https://acsi.github.io/tiptap-ember/",
+  "bugs": {
+    "url": "https://github.com/ACsi/tiptap-ember/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ACsi/tiptap-ember.git"
+  },
+  "license": "MIT",
+  "author": "Ács Dániel <acsi@silentvertigo.hu>",
+  "imports": {
+    "#src/*": "./src/*"
+  },
+  "exports": {
+    ".": {
+      "types": "./declarations/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./menus": {
+      "types": "./declarations/menus/index.d.ts",
+      "default": "./dist/menus/index.js"
+    },
+    "./template-registry": {
+      "types": "./declarations/template-registry.d.ts",
+      "default": "./dist/template-registry.js"
+    },
+    "./addon-main.js": "./addon-main.cjs"
+  },
+  "files": [
+    "addon-main.cjs",
+    "declarations",
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "rm -rf declarations && rollup --config",
+    "build:demo": "vite build --mode demo --out-dir dist-demo --empty-out-dir",
+    "check:publish": "pnpm build && publint run --level error",
+    "format": "prettier . --cache --write",
+    "lint": "concurrently \"pnpm:lint:*(!fix)\" --names \"lint:\" --prefixColors auto",
+    "lint:fix": "concurrently \"pnpm:lint:*:fix\" --names \"fix:\" --prefixColors auto && pnpm run format",
+    "lint:format": "prettier . --cache --check",
+    "lint:hbs": "ember-template-lint . --no-error-on-unmatched-pattern",
+    "lint:hbs:fix": "ember-template-lint . --fix --no-error-on-unmatched-pattern",
+    "lint:js": "eslint .",
+    "lint:js:fix": "eslint . --fix",
+    "lint:types": "ember-tsc --noEmit",
+    "prepack": "pnpm build",
+    "start": "vite dev",
+    "test": "vite build --mode=development --out-dir dist-tests && testem --file testem.cjs ci --port 0"
+  },
+  "dependencies": {
+    "@ember/test-waiters": "^4.1.1",
+    "@embroider/addon-shim": "^1.8.9",
+    "decorator-transforms": "^2.2.2",
+    "ember-modifier": "^4.3.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/eslint-parser": "^7.25.1",
+    "@babel/plugin-transform-typescript": "^7.25.2",
+    "@babel/runtime": "^7.25.6",
+    "@ember/app-tsconfig": "^1.0.0",
+    "@ember/library-tsconfig": "^1.0.0",
+    "@ember/test-helpers": "^5.2.1",
+    "@embroider/addon-dev": "^8.1.0",
+    "@embroider/core": "^4.1.0",
+    "@embroider/macros": "^1.20.1",
+    "@embroider/vite": "^1.1.5",
+    "@eslint/js": "^9.17.0",
+    "@glimmer/component": "^2.0.0",
+    "@glint/ember-tsc": "^1.11.6",
+    "@glint/template": "^1.9.0",
+    "@glint/tsserver-plugin": "^2.7.9",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@tiptap/core": "^3.31.4",
+    "@tiptap/extension-bubble-menu": "^3.31.4",
+    "@tiptap/extension-floating-menu": "^3.31.4",
+    "@tiptap/pm": "^3.31.4",
+    "@tiptap/starter-kit": "^3.31.4",
+    "@tiptap/suggestion": "^3.31.4",
+    "@types/qunit": "^2.19.12",
+    "babel-plugin-ember-template-compilation": "^4.0.0",
+    "concurrently": "^9.0.1",
+    "ember-hbs-minifier": "^1.3.0",
+    "ember-qunit": "^9.0.2",
+    "ember-source": ">=7.1.0",
+    "ember-strict-application-resolver": "^0.1.0",
+    "ember-template-lint": "^7.9.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-ember": "^12.3.3",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-n": "^17.15.1",
+    "globals": "^16.1.0",
+    "prettier": "^3.4.2",
+    "prettier-plugin-ember-template-tag": "^2.0.4",
+    "publint": "^0.3.16",
+    "qunit": "^2.24.1",
+    "qunit-dom": "^3.4.0",
+    "rollup": "^4.22.5",
+    "testem": "^3.15.1",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.19.1",
+    "vite": "^7.1.9"
+  },
+  "peerDependencies": {
+    "@glint/template": "^1.0.0",
+    "@tiptap/core": "^3.31.4",
+    "@tiptap/extension-bubble-menu": "^3.31.4",
+    "@tiptap/extension-floating-menu": "^3.31.4",
+    "@tiptap/pm": "^3.31.4"
+  },
+  "peerDependenciesMeta": {
+    "@glint/template": {
+      "optional": true
+    },
+    "@tiptap/extension-bubble-menu": {
+      "optional": true
+    },
+    "@tiptap/extension-floating-menu": {
+      "optional": true
+    }
+  },
+  "packageManager": "pnpm@10.34.6+sha512.7e1ae66a83a9143c118cc1944f37cc4f2b8acddeda4b001cfa78908f6e46e45e15292739ca6c9d026426cc757e9318cc98c5551d6a16c165097b0028ba87b4e6",
+  "publishConfig": {
+    "access": "public"
+  },
+  "ember-addon": {
+    "version": 2,
+    "type": "addon",
+    "main": "addon-main.cjs",
+    "app-js": {}
+  }
+}
