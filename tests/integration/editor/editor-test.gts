@@ -1,16 +1,31 @@
 import Component from '@glimmer/component';
+import type { TOC } from '@ember/component/template-only';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
-import { render, clearRender, settled } from '@ember/test-helpers';
+import { renderComponent } from '@ember/renderer';
+import {
+  render,
+  clearRender,
+  settled,
+  type TestContext,
+} from '@ember/test-helpers';
 import StarterKit from '@tiptap/starter-kit';
 import {
   EditorContent,
   Editor,
+  EmberMarkViewRenderer,
   EmberNodeViewRenderer,
+  EmberWidgetRenderer,
+  Extension,
+  Mark,
+  MarkViewContent,
   Node,
   NodeViewWrapper,
   useEditor,
+  type Content,
+  type EmberMarkViewSignature,
   type EmberNodeViewSignature,
+  type EmberWidgetDecorationSignature,
 } from '#src/index.ts';
 
 // Module-scope holder so tests can drive the editor the host created.
@@ -94,6 +109,53 @@ class ViewHost extends Component {
   <template><EditorContent @editor={{this.editor}} /></template>
 }
 
+const HighlightView: TOC<EmberMarkViewSignature> = <template>
+  <mark data-test-highlight><MarkViewContent @ctx={{@ctx}} /></mark>
+</template>;
+
+const HighlightMark = Mark.create({
+  name: 'highlightMark',
+  parseHTML() {
+    return [{ tag: 'mark' }];
+  },
+  renderHTML() {
+    return ['mark', 0];
+  },
+  addMarkView() {
+    return EmberMarkViewRenderer(HighlightView);
+  },
+});
+
+const CountView: TOC<EmberWidgetDecorationSignature<{ count: number }>> =
+  <template>
+    <span data-test-count>{{@count}}</span>
+  </template>;
+
+const CountExtension = Extension.create({
+  name: 'countExtension',
+  addDecorations() {
+    return {
+      create: ({ editor, state }) => [
+        EmberWidgetRenderer(CountView, {
+          editor,
+          pos: state.doc.content.size,
+          key: 'count',
+          props: { count: state.doc.childCount },
+        }),
+      ],
+    };
+  },
+});
+
+class ContentHost extends Component<{ Args: { content: Content } }> {
+  editor = useEditor(this, {
+    extensions: [StarterKit, HighlightMark, CountExtension],
+    content: this.args.content,
+  });
+
+  <template><EditorContent @editor={{this.editor}} /></template>
+}
+
 module('Integration | Editor | Editor and useEditor', function (hooks) {
   setupRenderingTest(hooks);
 
@@ -134,6 +196,36 @@ module('Integration | Editor | Editor and useEditor', function (hooks) {
     await settled();
 
     assert.dom('[data-test-view-bold]').hasText('true');
+  });
+
+  // What render() does since test-helpers 5.5, without depending on its version
+  test('views in the initial content render when the host renders through renderComponent', async function (this: TestContext, assert) {
+    const into = document.createElement('div');
+
+    renderComponent(ViewHost, { into, owner: this.owner });
+    await settled();
+
+    assert.dom('[data-test-view-bold]', into).hasText('false');
+  });
+
+  test('mark views in the initial content render', async function (assert) {
+    await render(
+      <template>
+        <ContentHost @content="<p><mark>marked</mark></p>" />
+      </template>,
+    );
+
+    assert.dom('[data-test-highlight]').hasText('marked');
+  });
+
+  test('widgets in the initial state render', async function (assert) {
+    await render(
+      <template>
+        <ContentHost @content="<p>a</p><p>b</p>" />
+      </template>,
+    );
+
+    assert.dom('[data-test-count]').hasText('2');
   });
 
   test('owner teardown with mounted views does not throw', async function (assert) {

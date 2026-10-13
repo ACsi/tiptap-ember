@@ -327,11 +327,11 @@ module('Integration | Widget | EmberWidgetRenderer', function (hooks) {
     assert.strictEqual(counts.destroyed, 1);
   });
 
-  test('renders with the editor owner', function (this: TestContext, assert) {
+  test('renders with an owner that inherits from the editor owner', function (this: TestContext, assert) {
     mount(this.owner, '<p>a</p>');
 
     assert.strictEqual(owners.length, 1);
-    assert.strictEqual(owners[0], this.owner);
+    assert.strictEqual(Object.getPrototypeOf(owners[0]) as unknown, this.owner);
   });
 
   test('hands the component root element to ProseMirror', function (this: TestContext, assert) {

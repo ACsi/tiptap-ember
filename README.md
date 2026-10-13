@@ -586,7 +586,7 @@ new EmberRenderer(
 | Parameter | Description |
 | --- | --- |
 | `component` | The component. It renders a single root element. |
-| `options.editor` | The editor. The component renders with its owner. |
+| `options.editor` | The editor. The component's owner inherits from the editor's owner. |
 | `options.props` | The props passed to the component. Optional. |
 
 | Member | Description |

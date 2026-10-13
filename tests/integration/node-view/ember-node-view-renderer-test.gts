@@ -340,11 +340,15 @@ module('Integration | NodeView | EmberNodeViewRenderer', function (hooks) {
   test('node view components can inject services', async function (this: TestContext, assert) {
     this.owner.register('service:greeting', GreetingService);
 
+    // Shows only if the view gets the owner's instance, not a new one
+    (this.owner.lookup('service:greeting') as GreetingService).message =
+      'from-the-owner';
+
     await render(<template><EditorContent @editor={{ctx.editor}} /></template>);
     ctx.editor.chain().focus().insertContent({ type: 'serviceNode' }).run();
     await settled();
 
-    assert.dom('[data-test-service]').hasText('service-injected');
+    assert.dom('[data-test-service]').hasText('from-the-owner');
   });
 
   test('@updateAttributes propagates to the ProseMirror node', async function (assert) {

@@ -4,6 +4,7 @@ import {
   destroy as destroyDestroyable,
   registerDestructor,
 } from '@ember/destroyable';
+import type Owner from '@ember/owner';
 import { getOwner } from '@ember/owner';
 import { trackedObject } from '@ember/reactive/collections';
 import { renderComponent } from '@ember/renderer';
@@ -12,7 +13,7 @@ import type { Editor } from '@tiptap/core';
 
 export interface EmberRendererOptions<TProps = Record<string, unknown>> {
   /**
-   * The component renders with this editor's owner.
+   * The component's owner inherits from this editor's owner.
    */
   editor: Editor;
 
@@ -43,6 +44,25 @@ interface RenderedComponent {
 
 // Glimmer can't render re-entrantly. A queued root could never be destroyed.
 let rendering = false;
+
+// Ember keeps one renderer per owner. A host rendering with the same owner,
+// like test-helpers' render(), would queue views created during its render.
+const viewOwners = new WeakMap<Owner, Owner>();
+
+function viewOwnerFor(owner: Owner): Owner {
+  let viewOwner = viewOwners.get(owner);
+
+  if (!viewOwner) {
+    // Inherits lookups, so views get the same services
+    viewOwner = Object.create(owner) as Owner;
+    associateDestroyableChild(owner, viewOwner);
+    viewOwners.set(owner, viewOwner);
+    // An editor created inside a view renders through the same renderer
+    viewOwners.set(viewOwner, viewOwner);
+  }
+
+  return viewOwner;
+}
 
 /**
  * Renders an Ember component into a detached element, for example a
@@ -131,8 +151,10 @@ export class EmberRenderer<TProps = Record<string, unknown>> {
       );
     }
 
+    const viewOwner = viewOwnerFor(owner);
+
     // Ahead of the render result, so owner teardown moves the element back first
-    associateDestroyableChild(owner, this);
+    associateDestroyableChild(viewOwner, this);
 
     rendering = true;
 
@@ -141,7 +163,7 @@ export class EmberRenderer<TProps = Record<string, unknown>> {
     try {
       result = renderComponent(this.component, {
         into: renderRoot,
-        owner,
+        owner: viewOwner,
         args,
       });
     } catch (error) {
@@ -213,7 +235,7 @@ export class EmberRenderer<TProps = Record<string, unknown>> {
     this.destroyed = true;
     this.renderedComponent.destroy();
 
-    // Drops the owner's reference
+    // Drops the view owner's reference
     destroyDestroyable(this);
   }
 }
