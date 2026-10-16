@@ -1,4 +1,5 @@
 import { tracked } from '@glimmer/tracking';
+import { buildWaiter } from '@ember/test-waiters';
 import type { ComponentLike } from '@glint/template';
 import {
   isNodeViewSelected,
@@ -17,8 +18,13 @@ import type {
   DecorationSource,
   EditorView,
 } from '@tiptap/pm/view';
-import { EmberRenderer } from '../renderer/ember-renderer.ts';
+import {
+  EmberRenderer,
+  hasRenderedThisTurn,
+} from '../renderer/ember-renderer.ts';
 import { createNodeViewContext, type NodeViewContext } from './context.ts';
+
+const waiter = buildWaiter('@acsi/tiptap-ember:node-view');
 
 /**
  * The args a node view component receives.
@@ -88,6 +94,14 @@ export class EmberNodeView<TAttrs = Record<string, unknown>> extends NodeView<
     | NodeViewRendererProps['extension']
     | null = null;
 
+  // Compared instead of the tracked values. Reading those inside a render
+  // would make our own write assert.
+  private syncedDecorationClasses = '';
+  private nodeSelected = false;
+
+  // Writes held by `holdsWrites`, applied on the next microtask
+  private heldProps: Partial<EmberNodeViewArgs<TAttrs>> | null = null;
+
   private readonly handleDragStart = (event: DragEvent): void => {
     this.onDragStart(event);
 
@@ -124,7 +138,7 @@ export class EmberNodeView<TAttrs = Record<string, unknown>> extends NodeView<
     }
 
     this.currentPos = newPos;
-    this.renderer.updateProps({ getPos: () => this.getPos() });
+    this.updateProps({ getPos: () => this.getPos() });
   };
 
   constructor(
@@ -147,7 +161,8 @@ export class EmberNodeView<TAttrs = Record<string, unknown>> extends NodeView<
       this.contentDOMElement = contentDOM;
     }
 
-    this.decorationClasses = this.getDecorationClasses();
+    this.syncedDecorationClasses = this.getDecorationClasses();
+    this.decorationClasses = this.syncedDecorationClasses;
 
     const ctx = createNodeViewContext({
       contentDOM: this.contentDOMElement,
@@ -247,11 +262,11 @@ export class EmberNodeView<TAttrs = Record<string, unknown>> extends NodeView<
     });
 
     if (isSelected) {
-      if (!this.renderer.props.selected) {
+      if (!this.nodeSelected) {
         this.selectNode();
       }
     } else {
-      if (this.renderer.props.selected) {
+      if (this.nodeSelected) {
         this.deselectNode();
       }
     }
@@ -263,7 +278,7 @@ export class EmberNodeView<TAttrs = Record<string, unknown>> extends NodeView<
     innerDecorations: DecorationSource,
   ): boolean {
     const rerenderComponent = (): void => {
-      this.renderer.updateProps({
+      this.updateProps({
         node: this.node,
         decorations: this.decorations,
         innerDecorations: this.innerDecorations,
@@ -312,7 +327,7 @@ export class EmberNodeView<TAttrs = Record<string, unknown>> extends NodeView<
     this.syncDecorationClasses();
 
     if (this.options.trackNodeViewPosition) {
-      this.renderer.updateProps({ getPos: () => this.getPos() });
+      this.updateProps({ getPos: () => this.getPos() });
     }
 
     rerenderComponent();
@@ -321,7 +336,8 @@ export class EmberNodeView<TAttrs = Record<string, unknown>> extends NodeView<
   }
 
   selectNode() {
-    this.renderer.updateProps({
+    this.nodeSelected = true;
+    this.updateProps({
       selected: true,
     });
 
@@ -329,7 +345,8 @@ export class EmberNodeView<TAttrs = Record<string, unknown>> extends NodeView<
   }
 
   deselectNode() {
-    this.renderer.updateProps({
+    this.nodeSelected = false;
+    this.updateProps({
       selected: false,
     });
 
@@ -363,10 +380,54 @@ export class EmberNodeView<TAttrs = Record<string, unknown>> extends NodeView<
 
   // A tracked set always invalidates, so skip unchanged values
   private syncDecorationClasses(): void {
+    if (this.holdsWrites) {
+      // Recomputed when the held props apply
+      this.holdProps({});
+
+      return;
+    }
+
     const classes = this.getDecorationClasses();
 
-    if (classes !== this.decorationClasses) {
+    if (classes !== this.syncedDecorationClasses) {
+      this.syncedDecorationClasses = classes;
       this.decorationClasses = classes;
     }
+  }
+
+  // Glimmer forbids changing what a render read, and once a view renders,
+  // a render around it may have read any view. Later writes wait too, so
+  // they stay in order.
+  private get holdsWrites(): boolean {
+    return this.heldProps !== null || hasRenderedThisTurn();
+  }
+
+  private updateProps(props: Partial<EmberNodeViewArgs<TAttrs>>): void {
+    if (this.holdsWrites) {
+      this.holdProps(props);
+    } else {
+      this.renderer.updateProps(props);
+    }
+  }
+
+  private holdProps(props: Partial<EmberNodeViewArgs<TAttrs>>): void {
+    if (this.heldProps) {
+      Object.assign(this.heldProps, props);
+
+      return;
+    }
+
+    const heldProps = { ...props };
+
+    this.heldProps = heldProps;
+
+    const token = waiter.beginAsync();
+
+    queueMicrotask(() => {
+      this.heldProps = null;
+      this.syncDecorationClasses();
+      this.renderer.updateProps(heldProps);
+      waiter.endAsync(token);
+    });
   }
 }

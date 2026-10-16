@@ -1,4 +1,5 @@
 import Component from '@glimmer/component';
+import type Owner from '@ember/owner';
 import type { TOC } from '@ember/component/template-only';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
@@ -10,6 +11,8 @@ import {
   type TestContext,
 } from '@ember/test-helpers';
 import StarterKit from '@tiptap/starter-kit';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import {
   EditorContent,
   Editor,
@@ -20,6 +23,7 @@ import {
   Mark,
   MarkViewContent,
   Node,
+  NodeViewContent,
   NodeViewWrapper,
   useEditor,
   type Content,
@@ -27,6 +31,7 @@ import {
   type EmberNodeViewSignature,
   type EmberWidgetDecorationSignature,
 } from '#src/index.ts';
+import { createOwnedTestEditor } from '../../helpers/create-test-editor.ts';
 
 // Module-scope holder so tests can drive the editor the host created.
 const holder: { editor: Editor | null } = { editor: null };
@@ -105,6 +110,155 @@ class ViewHost extends Component {
       content: '<p>plain <strong>bold</strong></p><bold-node></bold-node>',
     }),
   );
+
+  <template><EditorContent @editor={{this.editor}} /></template>
+}
+
+class DecoratedView extends Component<EmberNodeViewSignature> {
+  get innerCount(): number {
+    let count = 0;
+
+    this.args.innerDecorations.forEachSet((set) => {
+      count += set.find().length;
+    });
+
+    return count;
+  }
+
+  <template>
+    <NodeViewWrapper @ctx={{@ctx}} data-test-decorated>
+      <span data-test-outer-count>{{@decorations.length}}</span>
+      <span data-test-inner-count>{{this.innerCount}}</span>
+      <NodeViewContent @ctx={{@ctx}} />
+    </NodeViewWrapper>
+  </template>
+}
+
+const DecoratedNode = Node.create({
+  name: 'decoratedNode',
+  group: 'block',
+  content: 'inline*',
+  parseHTML() {
+    return [{ tag: 'div[data-decorated-node]' }];
+  },
+  renderHTML() {
+    return ['div', { 'data-decorated-node': '' }, 0];
+  },
+  addNodeView() {
+    return EmberNodeViewRenderer(DecoratedView);
+  },
+});
+
+// A node decoration on decoratedNode, an inline one on "deco-me"
+const DecorationExtension = Extension.create({
+  name: 'decorationExtension',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('decorationExtension'),
+        props: {
+          decorations(state) {
+            const found: Decoration[] = [];
+
+            state.doc.descendants((node, pos) => {
+              if (node.type.name === 'decoratedNode') {
+                found.push(
+                  Decoration.node(pos, pos + node.nodeSize, {
+                    class: 'test-outer-deco',
+                  }),
+                );
+              }
+
+              if (node.isText && node.text?.includes('deco-me')) {
+                const from = pos + node.text.indexOf('deco-me');
+
+                found.push(
+                  Decoration.inline(from, from + 'deco-me'.length, {
+                    class: 'test-inner-deco',
+                  }),
+                );
+              }
+
+              return true;
+            });
+
+            return DecorationSet.create(state.doc, found);
+          },
+        },
+      }),
+    ];
+  },
+});
+
+// The view draws before plugins load, so their decorations arrive as updates
+class DecoratedHost extends Component {
+  editor = useEditor(this, {
+    extensions: [StarterKit, DecoratedNode, DecorationExtension],
+    content: '<p>a</p><div data-decorated-node>deco-me</div>',
+  });
+
+  <template><EditorContent @editor={{this.editor}} /></template>
+}
+
+const SelectableView: TOC<EmberNodeViewSignature> = <template>
+  <NodeViewWrapper @ctx={{@ctx}} data-test-selectable>
+    {{~if @selected "selected" "idle"~}}
+  </NodeViewWrapper>
+</template>;
+
+const SelectableNode = Node.create({
+  name: 'selectableNode',
+  group: 'block',
+  atom: true,
+  parseHTML() {
+    return [{ tag: 'div[data-selectable-node]' }];
+  },
+  renderHTML() {
+    return ['div', { 'data-selectable-node': '' }];
+  },
+  addNodeView() {
+    return EmberNodeViewRenderer(SelectableView);
+  },
+});
+
+// Queues a selection change while it renders, like a command from a modifier
+class QueuingView extends Component<EmberNodeViewSignature> {
+  constructor(owner: Owner, args: EmberNodeViewSignature['Args']) {
+    super(owner, args);
+
+    queueMicrotask(() => {
+      args.editor.commands.setTextSelection(3);
+    });
+  }
+
+  <template>
+    <NodeViewWrapper @ctx={{@ctx}} data-test-queuing>
+      {{~if @selected "selected" "idle"~}}
+    </NodeViewWrapper>
+  </template>
+}
+
+const QueuingNode = Node.create({
+  name: 'queuingNode',
+  group: 'block',
+  atom: true,
+  parseHTML() {
+    return [{ tag: 'div[data-queuing-node]' }];
+  },
+  renderHTML() {
+    return ['div', { 'data-queuing-node': '' }];
+  },
+  addNodeView() {
+    return EmberNodeViewRenderer(QueuingView);
+  },
+});
+
+// The initial selection is a node selection on the leading atom
+class SelectableHost extends Component {
+  editor = useEditor(this, {
+    extensions: [StarterKit, SelectableNode],
+    content: '<div data-selectable-node></div><p>a</p>',
+  });
 
   <template><EditorContent @editor={{this.editor}} /></template>
 }
@@ -206,6 +360,46 @@ module('Integration | Editor | Editor and useEditor', function (hooks) {
     await settled();
 
     assert.dom('[data-test-view-bold]', into).hasText('false');
+  });
+
+  test('views in the initial content get decorations from plugins', async function (assert) {
+    await render(<template><DecoratedHost /></template>);
+
+    assert
+      .dom('[data-test-decorated]')
+      .hasClass('test-outer-deco', 'node decoration class on the wrapper');
+    assert
+      .dom('[data-test-outer-count]')
+      .hasText('1', 'component received the node decoration');
+    assert
+      .dom('[data-test-inner-count]')
+      .hasText('1', 'component received the inner decoration');
+  });
+
+  test('a view at the start of the initial content renders node-selected', async function (assert) {
+    await render(<template><SelectableHost /></template>);
+
+    assert
+      .dom('[data-test-selectable]')
+      .hasText('selected', 'component received @selected')
+      .hasClass('ProseMirror-selectednode');
+  });
+
+  // The queued change runs before the held props apply
+  test('a selection change queued while views render wins over the initial node selection', async function (this: TestContext, assert) {
+    const editor = createOwnedTestEditor(this.owner, {
+      extensions: [StarterKit, QueuingNode],
+      content: '<div data-queuing-node></div><p>a</p>',
+    });
+
+    await settled();
+
+    assert
+      .dom('[data-test-queuing]', editor.view.dom)
+      .hasText('idle', 'the queued deselection is the one applied')
+      .doesNotHaveClass('ProseMirror-selectednode');
+
+    editor.destroy();
   });
 
   test('mark views in the initial content render', async function (assert) {

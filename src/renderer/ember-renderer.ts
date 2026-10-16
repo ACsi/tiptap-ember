@@ -45,6 +45,26 @@ interface RenderedComponent {
 // Glimmer can't render re-entrantly. A queued root could never be destroyed.
 let rendering = false;
 
+// Rendering revalidates all of the renderer's roots, so a render around it
+// may have read any view. Reset on the next microtask.
+let renderedThisTurn = false;
+
+export function hasRenderedThisTurn(): boolean {
+  return renderedThisTurn;
+}
+
+function markRendered(): void {
+  if (renderedThisTurn) {
+    return;
+  }
+
+  renderedThisTurn = true;
+
+  queueMicrotask(() => {
+    renderedThisTurn = false;
+  });
+}
+
 // Ember keeps one renderer per owner. A host rendering with the same owner,
 // like test-helpers' render(), would queue views created during its render.
 const viewOwners = new WeakMap<Owner, Owner>();
@@ -157,6 +177,7 @@ export class EmberRenderer<TProps = Record<string, unknown>> {
     associateDestroyableChild(viewOwner, this);
 
     rendering = true;
+    markRendered();
 
     let result;
 
