@@ -1,6 +1,6 @@
 {
   "name": "@acsi/tiptap-ember",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Ember components for tiptap",
   "keywords": [
     "ember-addon",
