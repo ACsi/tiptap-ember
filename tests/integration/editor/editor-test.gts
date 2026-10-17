@@ -3,6 +3,7 @@ import type Owner from '@ember/owner';
 import type { TOC } from '@ember/component/template-only';
 import { module, test } from 'qunit';
 import { setupRenderingTest } from 'ember-qunit';
+import { destroy } from '@ember/destroyable';
 import { renderComponent } from '@ember/renderer';
 import {
   render,
@@ -195,6 +196,16 @@ class DecoratedHost extends Component {
   editor = useEditor(this, {
     extensions: [StarterKit, DecoratedNode, DecorationExtension],
     content: '<p>a</p><div data-decorated-node>deco-me</div>',
+  });
+
+  <template><EditorContent @editor={{this.editor}} /></template>
+}
+
+// The initial caret is inside the leading view
+class LeadingViewHost extends Component {
+  editor = useEditor(this, {
+    extensions: [StarterKit, DecoratedNode],
+    content: '<div data-decorated-node></div><p>a</p>',
   });
 
   <template><EditorContent @editor={{this.editor}} /></template>
@@ -427,6 +438,52 @@ module('Integration | Editor | Editor and useEditor', function (hooks) {
     await render(<template><ViewHost /></template>);
 
     assert.dom('[data-test-view-bold]').exists();
+  });
+
+  test('owner teardown with the caret in a view does not throw', async function (assert) {
+    await render(<template><LeadingViewHost /></template>);
+
+    assert.dom('[data-test-decorated]').exists();
+  });
+
+  // A child owner, so the test can check the editor after the teardown
+  test('owner teardown does not edit the document', async function (this: TestContext, assert) {
+    const owner = Object.create(this.owner) as Owner;
+
+    renderComponent(ViewHost, { into: document.createElement('div'), owner });
+    await settled();
+
+    let updates = 0;
+
+    holder.editor!.on('update', () => {
+      updates += 1;
+    });
+
+    destroy(owner);
+    await settled();
+
+    assert.strictEqual(updates, 0);
+  });
+
+  test('owner teardown leaves views to their editor', async function (this: TestContext, assert) {
+    const owner = Object.create(this.owner) as Owner;
+    const editor = createOwnedTestEditor(owner, {
+      extensions: [StarterKit, BoldNode],
+      content: '<p>a</p><bold-node></bold-node>',
+    });
+    const { dom } = editor.view;
+
+    destroy(owner);
+    await settled();
+
+    assert.dom('[data-test-view-bold]', dom).exists('kept after the teardown');
+
+    editor.destroy();
+    await settled();
+
+    assert
+      .dom('[data-test-view-bold]', dom)
+      .doesNotExist('destroyed with the editor');
   });
 
   test('state getter reflects transactions synchronously', function (assert) {

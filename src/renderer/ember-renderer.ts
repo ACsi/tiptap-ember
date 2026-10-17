@@ -1,6 +1,5 @@
 import { assert } from '@ember/debug';
 import {
-  associateDestroyableChild,
   destroy as destroyDestroyable,
   registerDestructor,
 } from '@ember/destroyable';
@@ -73,9 +72,9 @@ function viewOwnerFor(owner: Owner): Owner {
   let viewOwner = viewOwners.get(owner);
 
   if (!viewOwner) {
-    // Inherits lookups, so views get the same services
+    // Inherits lookups, so views get the same services. Not a destroyable
+    // child of `owner`: owner teardown would pull views out of a live editor.
     viewOwner = Object.create(owner) as Owner;
-    associateDestroyableChild(owner, viewOwner);
     viewOwners.set(owner, viewOwner);
     // An editor created inside a view renders through the same renderer
     viewOwners.set(viewOwner, viewOwner);
@@ -173,9 +172,6 @@ export class EmberRenderer<TProps = Record<string, unknown>> {
 
     const viewOwner = viewOwnerFor(owner);
 
-    // Ahead of the render result, so owner teardown moves the element back first
-    associateDestroyableChild(viewOwner, this);
-
     rendering = true;
     markRendered();
 
@@ -187,18 +183,12 @@ export class EmberRenderer<TProps = Record<string, unknown>> {
         owner: viewOwner,
         args,
       });
-    } catch (error) {
-      destroyDestroyable(this);
-
-      throw error;
     } finally {
       rendering = false;
     }
 
     // Ember queues a root added during its own render, so nothing is rendered yet
     if (!renderRoot.firstChild) {
-      destroyDestroyable(this);
-
       throw new Error(
         '[tiptap-ember] Cannot render a component while Ember is rendering. ' +
           'Move the transaction out of the render, for example with queueMicrotask().',
@@ -255,8 +245,6 @@ export class EmberRenderer<TProps = Record<string, unknown>> {
 
     this.destroyed = true;
     this.renderedComponent.destroy();
-
-    // Drops the view owner's reference
     destroyDestroyable(this);
   }
 }

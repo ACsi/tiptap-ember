@@ -588,7 +588,7 @@ new EmberRenderer(
 | `element: Element \| null` | The component's root element. Append it where it should show. |
 | `props: Props` | The current props. |
 | `updateProps(props: Partial<Props>): void` | Merges new props in and re-renders. |
-| `destroy(): void` | Tears the component down and removes its element. |
+| `destroy(): void` | Tears the component down and removes its element. The component stays rendered until you call it. |
 | `destroyed: boolean` | Whether `destroy()` has run. |
 
 Example: [Popups](#popups).
